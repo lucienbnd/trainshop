@@ -58,26 +58,57 @@ jobs:
       - name: Récupérer le code
         uses: actions/checkout@v4
 
+      - name: Initialiser la base de données
+        run: |
+          PGPASSWORD=trainshop_password psql \
+            -h localhost -U trainshop -d trainshop \
+            -f database/init/001-init.sql
+
       - name: Construire l'image Docker de l'API
-        run: docker build -t trainshop-api ./api
+        run: docker build -t trainshop-api:${{ github.sha }} ./api
+
+      - name: Afficher le tag de l'image construite
+        run: |
+          echo "Image construite trainshop-api ${{ github.sha }}"
 
       - name: Lancer le container
         run: |
           docker run --name trainshop-test \
             --network host \
             -e DATABASE_URL=postgres://trainshop:trainshop_password@localhost:5432/trainshop \
+            -e NODE_ENV=ci \
             -e API_PORT=3000 \
-            -d trainshop-api
+            -d trainshop-api:${{ github.sha }}
 
       - name: Attendre le démarrage de l'API
         run: sleep 5
 
-      - name: Tester l'endpoint /health
+      - name: Tester /health
         run: curl --fail http://localhost:3000/health
+
+      - name: Tester /ready
+        run: curl --fail http://localhost:3000/ready
+
+      - name: Tester /products
+        run: curl --fail http://localhost:3000/products
+
+      - name: Afficher les logs de diagnostic en cas d'échec
+        if: failure()
+        run: |
+          echo "=== Containers actifs ==="
+          docker ps -a
+          echo "=== État du container ==="
+          docker inspect trainshop-test || true
+          echo "=== Derniers logs du container ==="
+          docker logs --tail 50 trainshop-test || true
+          echo "=== Réponse de /health ==="
+          curl -s http://localhost:3000/health || true
+          echo "=== Réponse de /ready ==="
+          curl -s http://localhost:3000/ready || true
 
       - name: Nettoyer le container
         if: always()
         run: docker stop trainshop-test && docker rm trainshop-test || true
 
       - name: Construire l'image Docker du frontend
-        run: docker build -t trainshop-frontend ./frontend
+        run: docker build -t trainshop-frontend:${{ github.sha }} ./frontend

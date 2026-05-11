@@ -70,6 +70,14 @@ app.get('/products/:id', async (req, res) => {
   }
 });
 
+app.get('/about', (req, res) => {
+  res.json({
+    project: 'TrainShop Starter',
+    module: 'DevOps',
+    objective: 'Créer une CI GitHub Actions'
+  });
+});
+
 app.post('/products', async (req, res) => {
   try {
     const { name, description, price_cents, stock } = req.body;
